@@ -1,6 +1,6 @@
 {
   "name": "pixel-pet",
-  "description": "A pixel pet that lives above the Claude Code prompt",
+  "description": "A pixel pet that lives below the Claude Code prompt, beside its HUD",
   "owner": {
     "name": "halluqinate",
     "url": "https://github.com/Namenomeaning"

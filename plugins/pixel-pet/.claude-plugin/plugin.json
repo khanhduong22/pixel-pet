@@ -1,7 +1,7 @@
 {
   "name": "pixel-pet",
-  "version": "0.2.0",
-  "description": "A pixel pet above the prompt that acts out each tool call, plus an HP/MP/ST HUD below it",
+  "version": "0.2.1",
+  "description": "A pixel pet below the prompt that acts out each tool call, beside an HP/MP/ST HUD",
   "author": {
     "name": "halluqinate"
   },

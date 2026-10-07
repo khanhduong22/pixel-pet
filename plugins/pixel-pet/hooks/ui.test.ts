@@ -36,35 +36,54 @@ function stubEngine(on: On) {
   return store
 }
 
-test('the band draws the pet, and the hint line draws the HUD in its window', async ($, on) => {
+test('the band above the prompt stays empty; the pet plays below it, in a row with the HUD at the right', async ($, on) => {
   stubEngine(on)
   await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
 
   const band = await $.ui.mount({ plugin: 'pixel-pet', surface: 'terminal', ...BAND })
   const drawn = JSON.stringify(await band.drawn())
-  expect(drawn).toContain('"key":"pet"')
+  expect(drawn).not.toContain('"key":"pet"')
   await band.unmount()
 
   const hint = await $.ui.mount({ plugin: 'pixel-pet', surface: 'terminal', ...HINT })
   const tree = JSON.stringify(await hint.drawn())
+  expect(tree).toContain('"key":"pet"')
+  expect(tree).toContain('"flexDirection":"row"')
+  expect(tree.indexOf('"key":"pet"')).toBeLessThan(tree.indexOf('♥ HP'))
   expect(tree).toContain('▄▄▄')
   expect(tree).toContain('▀▀▀')
   expect(tree).toContain('♥ HP')
   await hint.unmount()
 })
 
-test('a theme with a scene draws the band across its width, with the ground in a row below the pet', async ($, on) => {
+test('a terminal too narrow to share a row stacks the HUD under the pet', async ($, on) => {
+  stubEngine(on)
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+
+  const band = await $.ui.mount({ plugin: 'pixel-pet', surface: 'terminal', ...BAND, props: { ...BAND.props, bodyColumns: 80 } })
+  await band.unmount()
+  const hint = await $.ui.mount({ plugin: 'pixel-pet', surface: 'terminal', ...HINT })
+  const tree = JSON.stringify(await hint.drawn())
+  expect(tree).not.toContain('"flexDirection":"row"')
+  expect(tree.indexOf('"key":"pet"')).toBeLessThan(tree.indexOf('♥ HP'))
+  await hint.unmount()
+})
+
+test('a theme with a scene draws the band beside the HUD, with the ground in a row below the pet', async ($, on) => {
   stubEngine(on)
   await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
   const scene = { ground: ['gg'], obstacles: [['gg', 'gg']] }
   await $.tool.call({ tool: 'mcp__pixel-pet__set_theme', theme: { ...BLOCK, palette: { ...BLOCK.palette, g: '#888888' }, scene } })
 
   const band = await $.ui.mount({ plugin: 'pixel-pet', surface: 'terminal', ...BAND })
-  const drawn = JSON.stringify(await band.drawn())
+  await band.unmount()
+  const hint = await $.ui.mount({ plugin: 'pixel-pet', surface: 'terminal', ...HINT })
+  const drawn = JSON.stringify(await hint.drawn())
   expect(drawn).toContain('"key":"pet"')
   expect(drawn).toContain('"key":"ground"')
-  expect(drawn).toContain('"columns":99')
-  await band.unmount()
+  expect(drawn).toContain('"columns":43') // 100 columns, less the HUD window beside it and the spare column
+  expect(drawn).toContain('♥ HP')
+  await hint.unmount()
 })
 
 test('set_theme draws and keeps a theme, notes what it repaired, and refuses one with no sprite', async ($, on) => {
@@ -120,13 +139,13 @@ test('the settings hide the HUD and the status line', { options: { hud: false, s
   await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
 
   const band = await $.ui.mount({ plugin: 'pixel-pet', surface: 'terminal', ...BAND })
-  const drawn = JSON.stringify(await band.drawn())
-  expect(drawn).toContain('"key":"pet"')
-  expect(drawn).not.toContain('›')
   await band.unmount()
 
   const hint = await $.ui.mount({ plugin: 'pixel-pet', surface: 'terminal', ...HINT })
-  expect(JSON.stringify(await hint.drawn())).not.toContain('♥ HP')
+  const drawn = JSON.stringify(await hint.drawn())
+  expect(drawn).toContain('"key":"pet"')
+  expect(drawn).not.toContain('›')
+  expect(drawn).not.toContain('♥ HP')
   await hint.unmount()
 })
 

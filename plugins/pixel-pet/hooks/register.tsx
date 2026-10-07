@@ -10,6 +10,7 @@ import type { Mini } from './minis'
 import { animate, readTheme, restingFrame } from './theme'
 import { previewPage } from './preview'
 import { readSettings } from './settings'
+import type { Settings } from './settings'
 import { BODY_W, FACES, HEIGHT, MAX_MINIS, compose, crop, encodeCells, encodeSvg, trailWidth } from './pixels'
 import type { Body } from './pixels'
 import { GROUND_H, drawBand, layScene, obstacleSpans } from './scene'
@@ -20,6 +21,7 @@ import type { ToolMode } from './status'
 const ROWS = 10 // a cell is two pixels tall, so the frames are 20 px high
 const GROUND_ROWS = GROUND_H / 2
 const STATUS_ROOM = 20 // columns kept free beside a running pet for its status line
+const HUD_SIDE = HUD_WINDOW_W + 2 // columns the HUD window takes beside the pet's band: its width, the gap before it, and a spare
 const USAGE_EVERY_BEATS = 20
 const AGENTS_EVERY_BEATS = 5
 const SLOW_BEATS: Partial<Record<Mode, number>> = { idle: 2, sleep: 4 } // ticks per redraw while nothing moves fast
@@ -57,6 +59,21 @@ async function minisOr($: EngineInterface, now: number, last: Mini[]) {
   } catch {
     return last
   }
+}
+
+/** What the pet draws this frame: its animation, its picture, and the status line beside it. */
+async function petFrame($: EngineInterface, body: Body, hud: Hud | undefined, minis: Mini[], settings: Settings) {
+  const a = await read($, anim)
+  const now = await $.clock.now()
+  const elapsed = now - a.since
+  const views = minisOnScreen(minis, now)
+  // A leap is the run mode playing the jump clip, slowed, while the pet travels.
+  const drawn = a.leap ? { mode: 'jump' as const, ms: leapClipMs((now - a.leap.since) * settings.pace) } : { mode: a.mode, ms: elapsed * settings.pace }
+  const picture = compose(body, drawn.mode, drawn.ms, a.dir, hud ? mood(hud) : 'ok', views)
+  const extra = views.length > MAX_MINIS ? ` (+${views.length - MAX_MINIS} minis)` : ''
+  const line = settings.statusLine ? statusLine(a.mode, a.since, elapsed, a.target, body.look.lines[a.mode]) + extra : ''
+
+  return { a, now, picture, line }
 }
 
 /** What preview_theme and set_theme tell Claude about a theme's pet: the clips and faces made, the resting frame, and readTheme's notes. */
@@ -108,8 +125,10 @@ export const register: Register = (on, options) => {
   let layout: SceneLayout | undefined // the scene of `layoutOf` on a band `bandWidth()` wide
   let layoutOf: Body | undefined
 
+  /** Columns the HUD takes beside the pet's band: none when it is hidden or the terminal is too narrow to share a row. */
+  const hudBeside = () => (settings.hud && hud && bodyColumns >= HUD_SIDE + BODY_W + STATUS_ROOM + 2 ? HUD_SIDE : 0)
   // The band leaves the last column free, so a full row never wraps.
-  const bandWidth = () => Math.max(BODY_W, bodyColumns - 1)
+  const bandWidth = () => Math.max(BODY_W, bodyColumns - 1 - hudBeside())
   /** The layout of the pet's scene on the band as wide as it is now, or undefined for a pet with no scene. */
   const sceneLayout = (pet: Body) => {
     if (!pet.scene) {
@@ -171,7 +190,7 @@ export const register: Register = (on, options) => {
       }
 
       const trail = trailWidth(minis.length)
-      const room = Math.max(0, bodyColumns - BODY_W - trail - STATUS_ROOM)
+      const room = Math.max(0, bandWidth() + 1 - BODY_W - trail - STATUS_ROOM)
       const scene = body && sceneLayout(body)
       const obstacles = scene ? obstacleSpans(scene) : []
       await update($, anim, a => {
@@ -259,24 +278,31 @@ export const register: Register = (on, options) => {
     return { result: `The ${read.theme.name} theme is on screen now, for this session and later ones.\n\n${themeReport(body, read.notes)}` }
   })
 
+  // On the terminal the pet plays below the prompt, in the row it shares with the HUD (the HUD sits at the right).
   on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
-    if (!settings.hud || !hud || e.surface !== 'terminal') {
+    if (e.surface !== 'terminal') {
       return next(e)
     }
-    if (!body) {
-      body = await keptBody($)
-    }
-    const rows = hudRows(hud, body.look.hud)
-    if (rows.length === 0) {
-      return next(e)
-    }
-    const { Box, Raster, Text } = $.ui.resolve(e)
-    const edges = windowEdges(HUD_WINDOW_W)
-    const frame = frameColor(body.look.hud)
+    isWorking = e.props.isWorking // this hook redraws every tick; the band above no longer does
+    try {
+      if (!body) {
+        body = await keptBody($)
+      }
+      const pet = body
+      const { a, now, picture, line } = await petFrame($, pet, hud, minis, settings)
+      if (showsError) {
+        showsError = false
+        $.ui.status(undefined)
+      }
+      const { Box, Raster, Text } = $.ui.resolve(e)
+      const engineLine = await next(e)
+      const side = hudBeside() > 0
+      const rowProps = { flexDirection: side ? 'row' : 'column', alignItems: side ? 'flex-end' : 'flex-start' } as const
 
-    return (
-      <Box flexDirection="column">
-        {await next(e)}
+      const rows = settings.hud && hud ? hudRows(hud, pet.look.hud) : []
+      const edges = windowEdges(HUD_WINDOW_W)
+      const frame = frameColor(pet.look.hud)
+      const hudWindow = rows.length > 0 && (
         <Box flexDirection="column" marginLeft={1}>
           <Text color={frame}>{edges.top}</Text>
           {rows.map(r => (
@@ -296,8 +322,73 @@ export const register: Register = (on, options) => {
           ))}
           <Text color={frame}>{edges.bottom}</Text>
         </Box>
-      </Box>
-    )
+      )
+
+      const scene = sceneLayout(pet)
+      if (scene && pet.scene) {
+        const width = scene.width
+        const textW = line ? lineWidth(line) + 3 : 0
+        const left = Math.max(0, Math.min(Math.round(a.x), width - picture.w - textW))
+        const band = drawBand(pet, pet.scene, scene, picture, left, now)
+        const cells = (x: number, y: number, w: number, h: number) => encodeCells(crop(band, x, y, w, h))
+        // The status line cuts a hole in the band; the band shows above, below, and right of it.
+        const textAt = left + picture.w
+        const shown = Math.min(textW, width - textAt)
+        const rest = width - textAt - shown
+
+        return (
+          <Box flexDirection="column">
+            {engineLine}
+            <Box {...rowProps}>
+              <Box flexDirection="column" height={ROWS + GROUND_ROWS} width={width}>
+                <Box height={ROWS}>
+                  <Raster key="pet" columns={textAt} rows={ROWS} cells={cells(0, 0, textAt, HEIGHT)} />
+                  {shown > 0 && (
+                    <Box key="line" flexDirection="column" width={shown}>
+                      <Raster key="above" columns={shown} rows={ROWS - 2} cells={cells(textAt, 0, shown, HEIGHT - 4)} />
+                      <Text color={lineColor(a.mode, pet.look.lineColors)} bold wrap="truncate">
+                        {` › ${line}`}
+                      </Text>
+                      <Raster key="below" columns={shown} rows={1} cells={cells(textAt, HEIGHT - 2, shown, 2)} />
+                    </Box>
+                  )}
+                  {rest > 0 && <Raster key="rest" columns={rest} rows={ROWS} cells={cells(textAt + shown, 0, rest, HEIGHT)} />}
+                </Box>
+                <Raster key="ground" columns={width} rows={GROUND_ROWS} cells={cells(0, HEIGHT, width, GROUND_H)} />
+              </Box>
+              {hudWindow}
+            </Box>
+          </Box>
+        )
+      }
+      const room = Math.max(0, bandWidth() + 1 - picture.w - line.length - 4)
+
+      return (
+        <Box flexDirection="column">
+          {engineLine}
+          <Box {...rowProps}>
+            <Box width={bandWidth()} height={ROWS}>
+              <Box marginLeft={Math.min(Math.round(a.x), room)} alignItems="flex-end">
+                <Raster key="pet" columns={picture.w} rows={ROWS} cells={encodeCells(picture)} />
+                {line && (
+                  <Box marginBottom={1} marginLeft={1}>
+                    <Text color={lineColor(a.mode, pet.look.lineColors)} bold>
+                      › {line}
+                    </Text>
+                  </Box>
+                )}
+              </Box>
+            </Box>
+            {hudWindow}
+          </Box>
+        </Box>
+      )
+    } catch (err) {
+      showsError = true
+      $.ui.status(`pixel-pet: ${String(err)}`)
+
+      return next(e)
+    }
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
@@ -307,93 +398,34 @@ export const register: Register = (on, options) => {
       }
       isWorking = e.props.isWorking
       bodyColumns = e.props.bodyColumns
+      // On the terminal the band stays empty: the pet plays below the prompt, beside the HUD.
+      if (e.surface !== 'desktop') {
+        return next(e)
+      }
 
       if (!body) {
         body = await keptBody($)
       }
-      const a = await read($, anim)
-      const now = await $.clock.now()
-      const elapsed = now - a.since
-      const views = minisOnScreen(minis, now)
-      // A leap is the run mode playing the jump clip, slowed, while the pet travels.
-      const drawn = a.leap ? { mode: 'jump' as const, ms: leapClipMs((now - a.leap.since) * settings.pace) } : { mode: a.mode, ms: elapsed * settings.pace }
-      const picture = compose(body, drawn.mode, drawn.ms, a.dir, hud ? mood(hud) : 'ok', views)
-      const extra = views.length > MAX_MINIS ? ` (+${views.length - MAX_MINIS} minis)` : ''
-      const line = settings.statusLine ? statusLine(a.mode, a.since, elapsed, a.target, body.look.lines[a.mode]) + extra : ''
+      const pet = body
+      const { a, picture, line } = await petFrame($, pet, hud, minis, settings)
       if (showsError) {
         showsError = false
         $.ui.status(undefined)
       }
+      const { Box, Svg, Text } = $.ui.resolve(e)
 
-      const scene = sceneLayout(body)
-      if (e.surface === 'terminal' && scene && body.scene) {
-        const { Box, Raster, Text } = $.ui.resolve(e)
-        const width = scene.width
-        const textW = line ? lineWidth(line) + 3 : 0
-        const left = Math.max(0, Math.min(Math.round(a.x), width - picture.w - textW))
-        const band = drawBand(body, body.scene, scene, picture, left, now)
-        const cells = (x: number, y: number, w: number, h: number) => encodeCells(crop(band, x, y, w, h))
-        // The status line cuts a hole in the band; the band shows above, below, and right of it.
-        const textAt = left + picture.w
-        const shown = Math.min(textW, width - textAt)
-        const rest = width - textAt - shown
-
-        return (
-          <Box flexDirection="column" height={ROWS + GROUND_ROWS}>
-            <Box height={ROWS}>
-              <Raster key="pet" columns={textAt} rows={ROWS} cells={cells(0, 0, textAt, HEIGHT)} />
-              {shown > 0 && (
-                <Box key="line" flexDirection="column" width={shown}>
-                  <Raster key="above" columns={shown} rows={ROWS - 2} cells={cells(textAt, 0, shown, HEIGHT - 4)} />
-                  <Text color={lineColor(a.mode, body.look.lineColors)} bold wrap="truncate">
-                    {` › ${line}`}
-                  </Text>
-                  <Raster key="below" columns={shown} rows={1} cells={cells(textAt, HEIGHT - 2, shown, 2)} />
-                </Box>
-              )}
-              {rest > 0 && <Raster key="rest" columns={rest} rows={ROWS} cells={cells(textAt + shown, 0, rest, HEIGHT)} />}
-            </Box>
-            <Raster key="ground" columns={width} rows={GROUND_ROWS} cells={cells(0, HEIGHT, width, GROUND_H)} />
+      return (
+        <Box alignItems="flex-end">
+          <Box marginLeft={Math.round(a.x)}>
+            <Svg source={encodeSvg(picture)} alt={`${pet.name}, ${a.mode}`} width={picture.w * 4} height={80} />
           </Box>
-        )
-      }
-      if (e.surface === 'terminal') {
-        const { Box, Raster, Text } = $.ui.resolve(e)
-        const room = Math.max(0, bodyColumns - picture.w - line.length - 4)
-
-        return (
-          <Box height={ROWS}>
-            <Box marginLeft={Math.min(Math.round(a.x), room)} alignItems="flex-end">
-              <Raster key="pet" columns={picture.w} rows={ROWS} cells={encodeCells(picture)} />
-              {line && (
-                <Box marginBottom={1} marginLeft={1}>
-                  <Text color={lineColor(a.mode, body.look.lineColors)} bold>
-                    › {line}
-                  </Text>
-                </Box>
-              )}
-            </Box>
-          </Box>
-        )
-      }
-      if (e.surface === 'desktop') {
-        const { Box, Svg, Text } = $.ui.resolve(e)
-
-        return (
-          <Box alignItems="flex-end">
-            <Box marginLeft={Math.round(a.x)}>
-              <Svg source={encodeSvg(picture)} alt={`${body.name}, ${a.mode}`} width={picture.w * 4} height={80} />
-            </Box>
-            {line && (
-              <Text color={lineColor(a.mode, body.look.lineColors)} bold>
-                {line}
-              </Text>
-            )}
-          </Box>
-        )
-      }
-
-      return next(e)
+          {line && (
+            <Text color={lineColor(a.mode, pet.look.lineColors)} bold>
+              {line}
+            </Text>
+          )}
+        </Box>
+      )
     } catch (err) {
       showsError = true
       $.ui.status(`pixel-pet: ${String(err)}`)

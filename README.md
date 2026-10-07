@@ -18,16 +18,20 @@
   <img src="docs/images/demo.gif" width="806" alt="A session in the terminal: the slime reads, searches, sends out a mini for a subagent, fetches a page, edits, fails a test and fixes it, and cheers when the turn ends">
 </p>
 
+> **About this fork.** A fork of [Namenomeaning/pixel-pet](https://github.com/Namenomeaning/pixel-pet), MIT licensed. It moves the pet from above the prompt to the row below it, to the left of the HUD (the HUD moves to the right). On a terminal too narrow to share the row, the HUD sits under the pet. Nothing else changes. The demo GIF above still shows the upstream layout, and `tools/demo/record.mjs` still lays out the upstream one.
+
 ## Install
 
 You need Claude Code v2.1.287 or later (`claude --version`).
 
 ```bash
-claude plugin marketplace add Namenomeaning/pixel-pet
+claude plugin marketplace add khanhduong22/pixel-pet
 claude plugin install pixel-pet@pixel-pet
 ```
 
-Start a new session, or run `/reload-plugins` in an open one. The slime appears above the prompt.
+This fork's marketplace has the same name as the upstream one, so if you already added upstream, run `claude plugin marketplace remove pixel-pet` first.
+
+Start a new session, or run `/reload-plugins` in an open one. The slime appears below the prompt, to the left of the HUD.
 
 To uninstall, run `claude plugin uninstall pixel-pet@pixel-pet`.
 
@@ -76,7 +80,7 @@ Ask Claude in any session, or run `/pixel-pet:pixel-pet`. You can change:
 - **the scene**: "a moon surface with rocks to jump over", "grass and flowers behind the pet";
 - **the settings** below, such as speed and sleep.
 
-Claude opens a preview in your browser first: every motion, face, status line, and HUD look, and the pet running through its scene, on a dark or a light background. Say what to change, and Claude redraws it. When you approve, the change shows above the prompt at once and stays for later sessions. To undo, ask for the slime back.
+Claude opens a preview in your browser first: every motion, face, status line, and HUD look, and the pet running through its scene, on a dark or a light background. Say what to change, and Claude redraws it. When you approve, the change shows below the prompt at once and stays for later sessions. To undo, ask for the slime back.
 
 All of it lives in one theme, a JSON file documented in [`FORMAT.md`](plugins/pixel-pet/skills/pixel-pet/FORMAT.md). [`alien.json`](plugins/pixel-pet/assets/alien.json) uses every field. To share a theme, ask Claude to save it as a file. To use someone else's, ask Claude to load their file.
 
