@@ -1,0 +1,62 @@
+{
+  "name": "Smash Cat",
+  "sprite": [
+    ".aa.......aa.",
+    ".awa.....awa.",
+    ".awwaaaaawwa.",
+    "aolookokooooa",
+    "alooooooooooa",
+    "aoooooooooooa",
+    "aoooooooooooa",
+    "aooowwpwwoooa",
+    "asssswwwssssa",
+    ".aaaaaaaaaaa."
+  ],
+  "palette": {
+    "a": "#4a2f1d", "o": "#f2a154", "s": "#cf7a2e", "l": "#ffcd94", "k": "#b8631f", "w": "#fff1dc", "p": "#ff8fa3",
+    "e": "#8c7b66", "f": "#f5ead3", "c": "#d6453d", "h": "#6b4423",
+    "t": "#c89a5a", "u": "#a97b3f", "y": "#e0689a", "z": "#b34773", "g": "#f5b942"
+  },
+  "outline": "a",
+  "eyes": [[3, 5], [7, 5]],
+  "cheeks": [[2, 7], [10, 7]],
+  "mini": { "top": "#ffcd94", "body": "#f2a154", "edge": "#4a2f1d" },
+  "miniSprite": ["e.e.e", "efefe", "efffe", ".eee.", ".ccc.", "..c.."],
+  "props": {
+    "think": [
+      ["e.e.e", "efefe", "efffe", ".eee.", ".ccc.", "..c..", ".....", ".....", ".....", ".....", ".....", ".....", ".....", "....."],
+      ["e.e.e", "efefe", "efffe", ".eee.", ".ccc.", "..c..", ".....", ".....", ".....", ".....", ".....", ".....", ".....", ".....", ".....", "....."],
+      ["e.e.e", "efefe", "efffe", ".eee.", ".ccc.", "..c..", ".....", ".....", ".....", ".....", ".....", ".....", ".....", ".....", ".....", ".....", ".....", "....."],
+      ["e.e.e", "efefe", "efffe", ".eee.", ".ccc.", "..c..", ".....", ".....", ".....", ".....", ".....", ".....", ".....", ".....", ".....", "....."]
+    ]
+  },
+  "lines": {
+    "idle": ["mrrp… what shall we build?", "*licks paw*", "purr… ready when you are", "knocking things off the desk…"],
+    "sleep": ["zzz… wake me with a prompt", "zzz… dreaming of shuttlecocks", "zzz…"],
+    "think": ["pondering… tail flicking", "watching the shuttlecock…", "staring at the problem", "almost got it…"],
+    "read": ["reading {}", "sniffing through {}", "skimming {}…", "turning pages…"],
+    "search": ["hunting for \"{}\"", "stalking \"{}\"", "looking under every file"],
+    "edit": ["editing {}", "kneading {} like dough", "writing the change"],
+    "bash": ["$ {}", "typing: {}", "paws on the keyboard…"],
+    "web": ["fetching {}", "chasing {} across the net", "waiting for the net…"],
+    "agent": ["sending out the shuttlecocks", "the little ones are on it"],
+    "run": ["zoom, zoom", "smash!", "hop hop hop"],
+    "jump": ["pounce!", "here we go!"],
+    "cheer": ["meow! ta-da!", "smash! all done!", "nailed it ✦"],
+    "error": ["hiss… that one bit back", "fumble — the shuttlecock missed", "ouch…"]
+  },
+  "lineColors": { "idle": "#e08a3c", "sleep": "#e08a3c", "jump": "#e08a3c", "cheer": "#e08a3c" },
+  "hud": { "frame": "#e08a3c" },
+  "scene": {
+    "ground": ["ttttwwwwwwtttttt", "uuuuuuuuuuuuuuuu"],
+    "obstacles": [
+      ["e.e.e", "efefe", "efffe", ".eee.", ".ccc.", "..c.."],
+      [".eee.", "efffe", "efefe", ".eee.", "..h..", "..h.."],
+      [".yyy.", "yyzyy", "yzyyy", ".yyy."]
+    ],
+    "decor": [
+      [".g.", "ggg", ".g.", "...", "...", "...", "...", "...", "...", "...", "...", "..."]
+    ],
+    "every": 44
+  }
+}
